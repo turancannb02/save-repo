@@ -1,155 +1,161 @@
-# Save Repo — GitHub README Updater for Apple Shortcuts
+<p align="center">
+  <img src="save-repo.png" alt="Save Repo Shortcut" width="480">
+</p>
 
-A simple **Apple Shortcut** that lets you update a GitHub repository's `README.md` directly from your iPhone.
+# Save Repo
 
-The Shortcut uses the **GitHub REST API** to:
+**Save Repo** is an Apple Shortcut that lets you update a file in a GitHub repository directly from your iPhone using the GitHub REST API.
 
-1. Fetch the current `README.md`
-2. Retrieve its current `SHA`
-3. Generate the new README content
-4. Encode the content as Base64
-5. Update the file through GitHub's Contents API
-6. Create a new Git commit automatically
+It is designed as a lightweight, Git-free workflow for quickly updating `README.md` or other text files from Apple Shortcuts.
 
-No Git client or computer is required.
+> **Security:** The published Shortcut does **not** contain a GitHub Personal Access Token. The token is represented by a placeholder and must be provided by each user.
 
-## Features
+## What It Does
 
-- Works entirely from Apple Shortcuts
-- Uses the official GitHub REST API
-- Automatically retrieves the current file `SHA`
-- Automatically Base64-encodes the README
-- Updates the existing file instead of creating duplicates
-- Creates a Git commit through the API
-- Can be extended to update any text file in a repository
+The Shortcut:
 
----
+1. Builds the GitHub API URL
+2. Authenticates with a user-provided GitHub Personal Access Token
+3. Fetches the existing file from GitHub
+4. Extracts the file's current `SHA`
+5. Generates the new file content
+6. Encodes the content as Base64
+7. Sends a `PUT` request to GitHub
+8. Creates a new commit with the updated file
 
-## How It Works
-
-The workflow follows this structure:
+### Workflow
 
 ```text
-Input Text
-    ↓
-GitHub GET request
-    ↓
-Get existing README
-    ↓
-Extract current SHA
-    ↓
-Generate new README
-    ↓
+New File Content
+       ↓
+GET existing file
+       ↓
+Extract SHA
+       ↓
 Base64 Encode
-    ↓
-GitHub PUT request
-    ↓
-New GitHub commit
-```
-
-The important part is that GitHub requires the **current SHA of the file** when updating an existing file.
-
-The API request is made to:
-
-```text
-PUT https://api.github.com/repos/{OWNER}/{REPOSITORY}/contents/{PATH}
-```
-
-For example:
-
-```text
-https://api.github.com/repos/OWNER/REPOSITORY/contents/README.md
+       ↓
+Build JSON request body
+       ↓
+PUT updated file
+       ↓
+GitHub Commit
 ```
 
 ---
 
 # Requirements
 
-- iPhone or iPad
+- An iPhone or iPad
 - Apple Shortcuts
 - A GitHub account
-- A GitHub Personal Access Token (PAT)
-- A repository you have permission to modify
+- A GitHub Personal Access Token
+- A repository where you have permission to modify the target file
 
 ---
 
-# 1. Create a GitHub Personal Access Token
+# Installation
 
-Create a Personal Access Token in your GitHub account.
-
-For a fine-grained token, give it access to the repository you want to modify.
-
-The token needs permission to:
+Download the included:
 
 ```text
-Contents → Read and write
+Save Repo.shortcut
 ```
 
-**Do not publish your token in the Shortcut or repository.**
+and import it into Apple Shortcuts.
 
-A token should never be committed to GitHub.
+The Shortcut is intentionally distributed without a real GitHub token.
 
 ---
 
-# 2. Create the Shortcut
+# Configuration
 
-Create a new Shortcut and name it:
+The published Shortcut uses placeholders for repository information and authentication.
+
+You will see values similar to:
 
 ```text
-Save Repo
+https://api.github.com/repos/{OWNER}/{REPOSITORY}/contents/README.md
 ```
 
-The Shortcut consists of two GitHub API requests.
-
----
-
-# 3. GET the Existing README
-
-Add:
-
-**Get Contents of URL**
-
-Configure:
-
-### Method
+and:
 
 ```text
-GET
+[YOUR_TOKEN]
 ```
 
-### URL
+Replace these with your own values.
 
-Use your repository's README endpoint:
+## 1. Repository URL
+
+Set:
 
 ```text
-https://api.github.com/repos/OWNER/REPOSITORY/contents/README.md
+https://api.github.com/repos/{OWNER}/{REPOSITORY}/contents/{FILE_PATH}
 ```
 
 For example:
 
 ```text
-https://api.github.com/repos/OWNER/awesome-repos/contents/README.md
+https://api.github.com/repos/octocat/hello-world/contents/README.md
 ```
 
-### Headers
+You can use any file path supported by the GitHub Contents API, not only `README.md`.
 
-Add:
+---
+
+## 2. GitHub Personal Access Token
+
+Create your own GitHub Personal Access Token and use it in the Shortcut.
+
+For a fine-grained token, grant access only to the repository you want to modify and give it the minimum required permission:
+
+```text
+Repository permissions
+└── Contents
+    └── Read and write
+```
+
+The Shortcut expects the token in the authorization header as:
+
+```text
+Bearer YOUR_TOKEN
+```
+
+### Never share your token
+
+Do **not**:
+
+- Commit your token to GitHub
+- Put your token in `README.md`
+- Share screenshots containing your token
+- Upload a Shortcut containing your real token
+- Publish your token in an issue or discussion
+
+If a token is accidentally exposed, revoke it immediately and create a new one.
+
+---
+
+# How the Shortcut Works
+
+## Step 1 — GET the Existing File
+
+The Shortcut sends a `GET` request to:
+
+```text
+https://api.github.com/repos/{OWNER}/{REPOSITORY}/contents/{FILE_PATH}
+```
+
+Headers:
 
 ```text
 Accept: application/vnd.github+json
-```
-
-```text
-Authorization: Bearer YOUR_GITHUB_TOKEN
-```
-
-```text
+Authorization: Bearer YOUR_TOKEN
 X-GitHub-Api-Version: 2026-03-10
 ```
 
-Instead of typing the token directly, it is recommended to store it securely and pass it into the `Authorization` header dynamically.
+GitHub returns metadata for the file, including its current SHA.
 
-The resulting response contains information similar to:
+Example response:
 
 ```json
 {
@@ -160,33 +166,29 @@ The resulting response contains information similar to:
 }
 ```
 
-The important field here is:
+The `sha` is required when updating an existing file.
+
+---
+
+## Step 2 — Extract the SHA
+
+The Shortcut gets:
 
 ```text
 sha
 ```
 
-We need this SHA for the update request.
+from the response Dictionary.
+
+This value is passed into the final update request.
+
+Without the current SHA, GitHub will reject an update to an existing file.
 
 ---
 
-# 4. Extract the SHA
+## Step 3 — Generate the New Content
 
-Add:
-
-**Get Value for `sha` in Dictionary**
-
-The Dictionary should be the response from the GitHub GET request.
-
-This gives you the current SHA of `README.md`.
-
-Keep this value for the PUT request later.
-
----
-
-# 5. Create the New README Content
-
-Add a **Text** action containing the README you want to upload.
+The Shortcut creates the new file content using a Text action.
 
 For example:
 
@@ -198,23 +200,21 @@ For example:
 - [owner/repository](https://github.com/owner/repository) - Description
 ```
 
-You can also generate this text dynamically.
-
-For example, the Shortcut can build the README from a list of repositories.
+The content can also be generated dynamically from other Shortcut actions.
 
 ---
 
-# 6. Encode the README as Base64
+## Step 4 — Base64 Encode the Content
 
-This is the most important step.
+GitHub's Contents API expects the file content in Base64.
 
-Add:
+The Shortcut uses:
 
-**Encode Text with Base64**
+```text
+Encode Text with Base64
+```
 
-Pass the new README text into it.
-
-### Important
+### Important: Disable line breaks
 
 Set:
 
@@ -228,59 +228,40 @@ Do **not** use:
 Every 76 Characters
 ```
 
-GitHub expects the `content` field to contain valid Base64. Adding line breaks can result in:
+Line breaks in the Base64 output can cause GitHub to return:
 
 ```text
-422 Unprocessable Entity
+422
+content is not valid Base64
 ```
 
-with:
-
-```json
-{
-  "message": "content is not valid Base64"
-}
-```
-
-So the correct configuration is:
-
-```text
-Encode Text
-    ↓
-Base64
-    ↓
-Line Breaks: None
-```
-
----
-
-# 7. Convert the Base64 Result to Text
-
-Add:
-
-**Get Text from Base64 Encoded**
-
-This gives you the Base64 string as plain text.
-
-This value will become the `content` field in the GitHub API request.
-
-The flow is therefore:
+The working flow is:
 
 ```text
 README Text
     ↓
 Encode Text with Base64
     ↓
-Get Text from Base64 Encoded
-    ↓
-Base64 String
+Line Breaks: None
 ```
 
 ---
 
-# 8. Create the Request Dictionary
+## Step 5 — Convert the Base64 Output to Text
 
-Add a **Dictionary** with three fields:
+The Shortcut then uses:
+
+```text
+Get Text from Base64 Encoded
+```
+
+This produces the Base64 string that is sent as the `content` field in the GitHub request.
+
+---
+
+## Step 6 — Build the Request Body
+
+The Shortcut creates a Dictionary containing:
 
 ```text
 message
@@ -288,15 +269,7 @@ content
 sha
 ```
 
-Configure them as follows:
-
-```text
-message → Update README
-content → Base64 Encoded Text
-sha     → SHA retrieved from GitHub
-```
-
-The resulting JSON is conceptually:
+For example:
 
 ```json
 {
@@ -306,90 +279,41 @@ The resulting JSON is conceptually:
 }
 ```
 
-Do not manually write the Base64 content.
+Where:
 
-Use the output from the Base64 encoding action.
+- `message` is the Git commit message
+- `content` is the Base64-encoded file content
+- `sha` is the SHA retrieved from the GET request
 
 ---
 
-# 9. PUT the Updated README
+## Step 7 — PUT the Updated File
 
-Add another:
-
-**Get Contents of URL**
-
-This time configure:
-
-### Method
+The Shortcut sends a `PUT` request to the same Contents API endpoint:
 
 ```text
-PUT
+https://api.github.com/repos/{OWNER}/{REPOSITORY}/contents/{FILE_PATH}
 ```
 
-### URL
-
-```text
-https://api.github.com/repos/OWNER/REPOSITORY/contents/README.md
-```
-
-### Headers
+with:
 
 ```text
 Accept: application/vnd.github+json
-```
-
-```text
-Authorization: Bearer YOUR_GITHUB_TOKEN
-```
-
-```text
+Authorization: Bearer YOUR_TOKEN
 X-GitHub-Api-Version: 2026-03-10
 ```
 
-### Request Body
+and the JSON request body:
 
-Set:
-
-```text
-JSON
+```json
+{
+  "message": "Update README",
+  "content": "BASE64_CONTENT",
+  "sha": "CURRENT_FILE_SHA"
+}
 ```
 
-Then provide the Dictionary created in the previous step.
-
-The final structure should be:
-
-```text
-Get Contents of URL
-    Method: PUT
-
-    Headers:
-        Accept
-        Authorization
-        X-GitHub-Api-Version
-
-    Request Body:
-        {
-            message
-            content
-            sha
-        }
-```
-
----
-
-# 10. Run the Shortcut
-
-Run the Shortcut.
-
-If everything is configured correctly, GitHub will return a successful response containing the newly created commit.
-
-You should then see a new commit in the repository:
-
-```text
-Update README
-```
-
-and the README will contain your newly generated content.
+GitHub then updates the file and creates a new commit.
 
 ---
 
@@ -397,57 +321,41 @@ and the README will contain your newly generated content.
 
 ## `422 — content is not valid Base64`
 
-This is usually caused by the Base64 output being formatted incorrectly.
-
-Check:
+Make sure the Base64 action is configured as:
 
 ```text
 Encode Text with Base64
-    Line Breaks → None
+Line Breaks → None
 ```
 
-Do not use:
-
-```text
-Every 76 Characters
-```
-
-Also make sure that the `content` field contains the **Base64-encoded output**, not the original README text.
+Also verify that the `content` field contains the Base64 output and not the original text.
 
 ---
 
 ## `422 — sha wasn't supplied`
 
-Make sure the SHA comes from:
+Make sure the `sha` value comes from the GET request:
 
 ```text
-GET README
-    ↓
+GET file
+   ↓
 Get Value for "sha" in Dictionary
+   ↓
+sha in PUT request
 ```
-
-and that this value is passed into:
-
-```text
-sha
-```
-
-inside the PUT request body.
 
 ---
 
 ## `401 — Bad credentials`
 
-Check your GitHub token.
+Check:
 
-Make sure:
-
-- The token is still valid
+- Your token is valid
 - The token has access to the repository
-- The `Authorization` header is exactly:
+- The Authorization header uses the correct format
 
 ```text
-Bearer YOUR_TOKEN
+Authorization: Bearer YOUR_TOKEN
 ```
 
 There must be a space between `Bearer` and the token.
@@ -456,112 +364,106 @@ There must be a space between `Bearer` and the token.
 
 ## `403 — Forbidden`
 
-The token probably doesn't have sufficient repository permissions.
+Check the permissions of your Personal Access Token.
 
-For a fine-grained Personal Access Token, check:
+For a fine-grained token, make sure:
 
 ```text
 Repository access
+    ↓
+Target repository
+    ↓
+Contents: Read and write
 ```
-
-and:
-
-```text
-Contents → Read and write
-```
-
----
-
-# Security
-
-**Never commit your GitHub Personal Access Token.**
-
-Do not put the token into:
-
-- `README.md`
-- screenshots
-- GitHub Issues
-- source files
-- public Shortcut exports
-- Git history
-
-If you accidentally expose a token, revoke it immediately and generate a new one.
-
-For a public Shortcut, the token should be supplied by the user rather than embedded in the Shortcut itself.
 
 ---
 
 # Extending the Shortcut
 
-The same technique can be used to update other files.
+Although this project uses `README.md` as the example, the same workflow can update other files.
 
-Change:
-
-```text
-contents/README.md
-```
-
-to another path, for example:
+For example:
 
 ```text
 contents/data.json
-```
-
-or:
-
-```text
+contents/changelog.md
 contents/config/settings.json
+contents/docs/example.md
 ```
 
-The general GitHub Contents API pattern is:
+The general pattern is:
 
 ```text
 GET
-    ↓
+ ↓
 Get SHA
-    ↓
-Generate file
-    ↓
-Base64 encode
-    ↓
+ ↓
+Generate content
+ ↓
+Base64 Encode
+ ↓
 PUT
-    ↓
+ ↓
 Commit
 ```
 
-This means the Shortcut can be adapted to automatically update:
+This can be used for:
 
 - Markdown files
 - JSON files
-- configuration files
-- documentation
-- changelogs
-- generated lists
-- project metadata
+- Documentation
+- Changelogs
+- Generated lists
+- Configuration files
+- Project metadata
+- Other text-based files
 
 ---
 
-# Example Use Case
+# Why Apple Shortcuts?
 
-For example, you could maintain an **Awesome Repositories** repository directly from your iPhone.
+This project demonstrates that Apple's Shortcuts app can act as a lightweight GitHub client using HTTP requests.
 
-The Shortcut could take:
+It can be useful when you want to:
+
+- Quickly update a repository from your phone
+- Automate small GitHub updates
+- Generate documentation from mobile data
+- Build simple mobile GitHub workflows
+- Experiment with REST APIs without writing a full application
+
+No local Git installation is required.
+
+---
+
+# Repository Structure
 
 ```text
-Repository
-Description
-URL
+save-repo/
+├── README.md
+├── Save Repo.shortcut
+└── LICENSE
 ```
 
-and automatically generate:
+The included `.shortcut` file is the actual Apple Shortcut used to perform the workflow.
 
-```markdown
-- [owner/repository](https://github.com/owner/repository) - Description
+---
+
+# Security Notice
+
+This repository intentionally contains **no real GitHub credentials**.
+
+The distributed Shortcut uses:
+
+```text
+[YOUR_TOKEN]
 ```
 
-Then update the README through GitHub's API.
+as a placeholder.
 
-No computer or Git client is necessary.
+Users must provide their own GitHub Personal Access Token.
+
+For security, use the smallest repository scope and permissions necessary for your use case.
 
 ---
 
@@ -569,16 +471,14 @@ No computer or Git client is necessary.
 
 MIT License
 
-Feel free to modify, extend, and redistribute the Shortcut.
+See [`LICENSE`](LICENSE) for details.
 
 ---
 
-## Credits
+## Built With
 
-Built with:
-
-- Apple Shortcuts
+- [Apple Shortcuts](https://support.apple.com/guide/shortcuts/welcome/ios)
 - GitHub REST API
 - GitHub Contents API
 
-The implementation uses GitHub's **Create or Update File Contents** endpoint.
+The Shortcut uses GitHub's **Create or Update File Contents** endpoint.
